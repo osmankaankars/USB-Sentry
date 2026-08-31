@@ -1,0 +1,5 @@
+{
+    "authorized_devices": [
+        "REPLACE-WITH-A-TRUSTED-VOLUME-UUID"
+    ]
+}

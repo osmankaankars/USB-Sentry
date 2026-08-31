@@ -1,102 +1,84 @@
-# USB Sentry 🛡️
+# USB Sentry
 
-> **An automated Endpoint Security tool for macOS that detects, logs, and actively blocks unauthorized USB storage devices.**
+> A macOS proof of concept that classifies mounted volumes, checks external USB storage against a local UUID allowlist, and attempts to unmount unauthorized devices.
 
-![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
+![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/Platform-macOS-lightgrey)
-![Security](https://img.shields.io/badge/Focus-DLP_&_Endpoint_Protection-red)
+![CI](https://github.com/osmankaankars/USB-Sentry/actions/workflows/ci.yml/badge.svg)
 
----
+## What it demonstrates
 
-## 📖 Overview
-In secure environments, unauthorized external storage devices pose a significant risk for **Data Exfiltration** and **Malware Injection**.
+- Polling `/Volumes` and re-evaluating mounts whose `diskutil` identity changes.
+- Reading transport, internal/external status, device identity, and volume UUID from `diskutil info -plist`.
+- Limiting enforcement to volumes macOS reports as external USB devices; internal, network, and other transports are left unchanged.
+- A fail-closed local allowlist for classified external USB devices: missing, malformed, and unknown UUIDs are not authorized.
+- An attempted `diskutil unmount force` response for unauthorized volumes.
+- Retry on the next polling cycle when an unmount attempt fails.
+- Local event logging for review.
 
-**USB Sentry** acts as a lightweight DLP (Data Loss Prevention) agent. It monitors the system for mount events in real-time, validates the device identifier (UUID) against a secure whitelist, and automatically ejects (unmounts) any unauthorized device before data transfer can occur.
+The tracked `whitelist.example.json` contains placeholders only. The active `whitelist.json` and runtime log are deliberately ignored so device identifiers and workstation activity are not committed.
 
----
+## Requirements
 
-## ✨ Features
-* **Real-Time Monitoring:** Detects new storage devices immediately upon insertion.
-* **UUID-Based Authentication:** Identifies devices by their unique hardware UUID (Volume ID), not just by name.
-* **Active Response:** Automatically executes `diskutil unmount force` on unauthorized devices.
-* **Security Logging:** Maintains a detailed audit log (`usb_security.log`) of all connection attempts for forensic review.
+- macOS with `diskutil`
+- Python 3.11+
+- Permission to inspect and unmount the target volumes
 
----
+## Setup
 
-## ⚙️ Installation
-
-### Prerequisites
-* macOS (Tested on Sonoma/Ventura)
-* Python 3.8+
-
-### Setup
-1. Clone the repository:
 ```bash
 git clone https://github.com/osmankaankars/USB-Sentry.git
 cd USB-Sentry
-```
-
-2. Install dependencies:
-```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
+cp whitelist.example.json whitelist.json
 ```
 
-3. **Configure Policy:**
-
-Edit `whitelist.json` to add the UUIDs of allowed devices:
+Replace the placeholder in `whitelist.json` with a trusted volume UUID:
 
 ```json
 {
     "authorized_devices": [
-        "E5C8-4F2A",
-        "YOUR-TRUSTED-UUID-HERE"
+        "YOUR-TRUSTED-VOLUME-UUID"
     ]
 }
 ```
 
----
+Find a mounted volume's UUID with:
 
-## 🚀 Usage
+```bash
+diskutil info "/Volumes/YOUR_VOLUME_NAME" | grep "Volume UUID"
+```
 
-Run the sentry agent (sudo recommended for forceful unmounting privileges):
+## Run
 
 ```bash
 sudo python usb_sentry.py
 ```
 
----
+The process checks mount metadata every two seconds. Existing external USB volumes are evaluated on the first cycle, same-label replacements are re-evaluated when their identity changes, and failed classification or unmount operations are retried. Events are written to the ignored `usb_security.log` file; review it because an unmount attempt can still fail.
 
-## 🔍 How to find your UUID?
-
-To whitelist a USB device, plug it in and run:
+## Tests
 
 ```bash
-diskutil info /Volumes/YOUR_USB_NAME | grep "Volume UUID"
+python -m unittest discover -s tests -v
 ```
 
-Copy the result into `whitelist.json`.
+The portable unit tests use temporary mount directories and mocked `diskutil` boundaries; they do not unmount real devices. GitHub Actions runs the same suite on Python 3.11.
 
----
+## Security and operational limits
 
-## 🛡️ Operational Logic
+USB Sentry is a learning PoC, not a full DLP or endpoint-protection product.
 
-**Detection:** Monitors `/Volumes` directory for changes.  
-**Identification:** Extracts Volume UUID using `diskutil`.  
-**Verification:** Compares UUID against `whitelist.json`.  
-**Enforcement:** If the UUID is not listed, the system triggers an immediate **Force Unmount**.
+- macOS mounts a volume before this polling process observes it. This tool cannot guarantee prevention of reads or writes during that interval.
+- `/Volumes` can contain system, disk-image, and network mounts. The prototype acts only when `diskutil` reports `BusProtocol=USB` and `Internal=false`; if those fields are missing or metadata cannot be read, it leaves the mount unchanged and retries classification.
+- Classification depends on macOS-provided metadata and has not been validated across every enclosure, hub, filesystem, or macOS release.
+- A volume UUID is an identifier, not strong device authentication, and should not be treated as tamper-proof.
+- Force-unmount can disrupt legitimate work and can fail because of permissions or open files. Test only on systems and media you control.
+- The process has no centralized policy distribution, tamper protection, health monitoring, or guaranteed log delivery.
+- For managed environments, prefer OS-supported device-control/MDM controls and use this project only as a lab demonstration.
 
----
+## Author
 
-## ⚠️ Disclaimer
-This tool is a Proof of Concept (PoC) for endpoint security automation.  
-While effective, it relies on the OS mounting the drive first to read the UUID.  
-In high-security air-gapped environments, physical port blocking is recommended.
-
----
-
-## 👨‍💻 Author
-**Osman Kaan Kars**  
-Cybersecurity Engineer | SAP Security Specialist  
-
-**LinkedIn:** https://linkedin.com/in/osmankaankars  
-**GitHub:** https://github.com/osmankaankars
+Osman Kaan Kars — Senior Cybersecurity Engineer at SchutzOn
