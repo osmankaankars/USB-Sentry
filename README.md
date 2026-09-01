@@ -2,7 +2,7 @@
 
 > A macOS proof of concept that classifies mounted volumes, checks external USB storage against a local UUID allowlist, and attempts to unmount unauthorized devices.
 
-![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
+![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![Platform](https://img.shields.io/badge/Platform-macOS-lightgrey)
 ![CI](https://github.com/osmankaankars/USB-Sentry/actions/workflows/ci.yml/badge.svg)
 
@@ -57,7 +57,7 @@ diskutil info "/Volumes/YOUR_VOLUME_NAME" | grep "Volume UUID"
 sudo python usb_sentry.py
 ```
 
-The process checks mount metadata every two seconds. Existing external USB volumes are evaluated on the first cycle, same-label replacements are re-evaluated when their identity changes, and failed classification or unmount operations are retried. Events are written to the ignored `usb_security.log` file; review it because an unmount attempt can still fail.
+The process checks mount metadata every two seconds. Existing external USB volumes are evaluated on the first cycle, same-label replacements are re-evaluated when their identity changes, and failed classification or unmount operations are retried. Events are written to the ignored `usb_security.log` file. The log can contain volume labels and UUIDs, and its permissions follow the launching user's environment and umask; protect, rotate, and delete it according to your data-handling needs.
 
 ## Tests
 
@@ -76,9 +76,6 @@ USB Sentry is a learning PoC, not a full DLP or endpoint-protection product.
 - Classification depends on macOS-provided metadata and has not been validated across every enclosure, hub, filesystem, or macOS release.
 - A volume UUID is an identifier, not strong device authentication, and should not be treated as tamper-proof.
 - Force-unmount can disrupt legitimate work and can fail because of permissions or open files. Test only on systems and media you control.
+- Unmount failure events do not preserve the complete `diskutil` diagnostic output. Review the affected device and system logs manually when troubleshooting.
 - The process has no centralized policy distribution, tamper protection, health monitoring, or guaranteed log delivery.
 - For managed environments, prefer OS-supported device-control/MDM controls and use this project only as a lab demonstration.
-
-## Author
-
-Osman Kaan Kars — Senior Cybersecurity Engineer at SchutzOn
